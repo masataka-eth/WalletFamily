@@ -10,6 +10,9 @@ contract WalletFamily {
     mapping (address => address[]) public approveFamilys;
     mapping (address => address[]) public fixFamilys;
 
+    event approvedChild(address indexed parent, address indexed child);
+    event admitFixChild(address indexed parent, address indexed child);
+
     //////////////////////////////////////
     // intaernal
     //////////////////////////////////////
@@ -29,7 +32,7 @@ contract WalletFamily {
     }
 
     function _getApproveList(address _parent) internal view returns (address[] memory) {
-        return approveFamilys[_parent];
+        return  approveFamilys[_parent];
     }
 
     function _getApprove(address _parent,address _child) internal view returns (bool){
@@ -63,9 +66,11 @@ contract WalletFamily {
     // external・public
     //////////////////////////////////////
     // approve ----------------------------
-    function approveChild(address _parent,bytes memory _signature) external {
-        require(isVerify(_parent,_signature) == true,"coupon is no valid");
+    function approveChild(address _parent,bytes32 _nonce, bytes memory _signature) external {
+        require(isVerify(_parent,_nonce,_signature) == true,"coupon is no valid");
         _addApproveFamily(_parent,msg.sender);
+
+        emit approvedChild(_parent,msg.sender);
     }
 
     function deleteApprove(address _parent,address _child) external returns (bool){
@@ -82,6 +87,8 @@ contract WalletFamily {
         require(_getApprove(msg.sender,_child) == true,"no aprove");
         _deleteApprove(msg.sender,_child);
         _addFixFamily(msg.sender,_child);
+
+        emit admitFixChild(msg.sender,_child);
     }
 
     function isChild(address _child) external view returns (bool) {
@@ -97,57 +104,33 @@ contract WalletFamily {
     }
 
     // VerifySignature ----------------------------
-    function getMessageHash(
-        address _child,
-        address _parent
-    ) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_child, _parent));
+    function getMessageHash(address _child,address _parent,bytes32 _nonce) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_child, _parent,_nonce));
     }
 
-    function getEthSignedMessageHash(bytes32 _messageHash)
-        public
-        pure
-        returns (bytes32)
-    {
+    function getEthSignedMessageHash(bytes32 _messageHash) public pure returns (bytes32) {
         /*
         Signature is produced by signing a keccak256 hash with the following format:
         "\x19Ethereum Signed Message\n" + len(msg) + msg
         */
-        return
-            keccak256(
-                abi.encodePacked("\x19Ethereum Signed Message:\n32", _messageHash)
-            );
+        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", _messageHash));
     }
 
-    function isVerify(
-        address _parent,
-        bytes memory signature
-    ) public view returns (bool) {
-        bytes32 messageHash = getMessageHash(msg.sender, _parent);
+    function isVerify(address _parent,bytes32 _nonce,bytes memory signature) public view returns (bool) {
+        bytes32 messageHash = getMessageHash(msg.sender, _parent,_nonce);
         bytes32 ethSignedMessageHash = getEthSignedMessageHash(messageHash);
 
         return recoverSigner(ethSignedMessageHash, signature) ==  msg.sender;
     }
 
     function recoverSigner(bytes32 _ethSignedMessageHash, bytes memory _signature)
-        public
-        pure
-        returns (address)
-    {
+        public pure returns (address) {
         (bytes32 r, bytes32 s, uint8 v) = splitSignature(_signature);
 
         return ecrecover(_ethSignedMessageHash, v, r, s);
     }
 
-    function splitSignature(bytes memory sig)
-        public
-        pure
-        returns (
-            bytes32 r,
-            bytes32 s,
-            uint8 v
-        )
-    {
+    function splitSignature(bytes memory sig) public pure returns (bytes32 r, bytes32 s,uint8 v){
         require(sig.length == 65, "invalid signature length");
 
         assembly {
