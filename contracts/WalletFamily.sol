@@ -67,6 +67,7 @@ contract WalletFamily {
     //////////////////////////////////////
     // approve ----------------------------
     function approveChild(address _parent,bytes32 _nonce, bytes memory _signature) external {
+        require(_parent != address(0),"address is no valid");
         require(isVerify(_parent,_nonce,_signature) == true,"coupon is no valid");
         _addApproveFamily(_parent,msg.sender);
 
@@ -84,6 +85,7 @@ contract WalletFamily {
 
     // fix ----------------------------
     function fixChild(address _child) external{
+        require(_child != address(0),"address is no valid");
         require(_getApprove(msg.sender,_child) == true,"no aprove");
         _deleteApprove(msg.sender,_child);
         _addFixFamily(msg.sender,_child);
